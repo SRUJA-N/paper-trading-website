@@ -1,30 +1,25 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# --- Environment Variables ---
-# Prevents Python from writing pyc files to disc
-ENV PYTHONDONTWRITEBYTECODE 1
-# Prevents Python from buffering stdout and stderr
-ENV PYTHONUNBUFFERED 1
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
 
-# --- Install Dependencies ---
-# Copy the requirements file into the container
+# Copy requirements first for better caching
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the Python dependencies
-RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
-
-# --- Copy Application Code ---
-# Copy the rest of the backend source code into the container
+# Copy the rest of the application
 COPY . .
 
-# Expose the port the app runs on
+# Expose port
 EXPOSE 8000
 
-# --- Run the Application ---
-# Command to run the Uvicorn server
-# Binds the server to 0.0.0.0 to be accessible from outside the container
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Make wait-for-db.sh executable
+RUN chmod +x wait-for-db.sh
+
+# Run the application with wait-for-db.sh to ensure DB is ready
+CMD ["./wait-for-db.sh", "db", "5432", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

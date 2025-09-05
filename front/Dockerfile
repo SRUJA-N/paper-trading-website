@@ -1,31 +1,28 @@
-FROM node:18-alpine as builder
+# Stage 1: Build the React/Vite app
+FROM node:22-alpine AS build
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json to install dependencies
+# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the application source code
+# Copy source and build
 COPY . .
-
-# Build the React application for production (output goes to /app/dist)
 RUN npm run build
 
-# --- Stage 2: Serve the App with NGINX ---
-# Use a lightweight NGINX image
-FROM nginx:1.25-alpine
+# Stage 2: Serve with nginx
+FROM nginx:alpine
 
-# Copy the build output from the 'builder' stage to NGINX's web root directory
-# The source directory is now correctly set to /app/dist
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy the custom NGINX configuration
+# Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80 for the NGINX server
+# Copy built files to nginx html folder
+COPY --from=build /app/dist /usr/share/nginx/html
+
 EXPOSE 80
 
-# Start NGINX when the container launches
 CMD ["nginx", "-g", "daemon off;"]
